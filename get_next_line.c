@@ -6,64 +6,87 @@
 /*   By: alopez-t <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/21 11:59:10 by alopez-t          #+#    #+#             */
-/*   Updated: 2026/11/03 20:02:48 by alopez-t         ###   ########.fr       */
+/*   Updated: 2026/11/05 14:49:51 by alopez-t         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 #include "get_next_line.h"
 
-void	recover(char *content, size_t *position);
+char	*read_and_accumulate(int fd, char *content, size_t *position)
 {
-	size_t	i;
-	char	*new_str;
+	char	*tmp;
+	ssize_t	bytes_read;
 
-	i = 0;
-	while (content[position + i] != '\0' && i < len(content))
-		i++;
-	new_str = (char *)malloc(sizeof(char) * i);
-	if (!new_str)
-		return (NULL);
-	memcpy(new_str, &content[position], i);
-	cleaner(content);
+	tmp = (char *)malloc(sizeof(char) * ((size_t)BUFFER_SIZE + 1));
+	if (!tmp)
+		return (cleaner(content));
+	bytes_read = 1;
+	while ((checker(content, position) == 0) && bytes_read > 0)
+	{
+		bytes_read = read(fd, tmp, BUFFER_SIZE);
+		if (bytes_read < 0)
+			break ;
+		tmp[bytes_read] = '\0';
+		content = ft_strjoin(content, tmp);
+	}
+	free(tmp);
+	if (bytes_read < 0 || !content || content[0] == '\0')
+		return (cleaner(content));
+	return (content);
 }
 
-char	*conffirm(char *content, size_t times, size_t *position)
+char	*conffirm(char *content, size_t position)
 {
 	char	*line;
-	size_t	i;
+	size_t	len;
 
-	line = (char *)malloc(sizeof(char) * position);
+	if (content[position] == '\n')
+		len = position + 1;
+	else
+		len = position;
+	line = (char *)malloc(sizeof(char) * (len + 1));
 	if (!line)
 		return (NULL);
-	while (i <= position)
-	{
-		line[i] = content[i];
+	ft_strcpy(line, content, len);
+	line[len] = '\0';
+	return (line);
+}
+
+char	*recover(char *content, size_t position)
+{
+	size_t	i;
+	char	*tmp;
+
+	if (content[position] != '\n' || !content[position + 1])
+		return (cleaner(content));
+	i = 0;
+	while (content[position + 1 + i] != '\0')
 		i++;
-	}
-	if (i < len(content));
-		content = recover(content, position);
-	return(line);
+	tmp = (char *)malloc(sizeof(char) * (i + 1));
+	if (!tmp)
+		return (cleaner(content));
+	ft_strcpy(tmp, &content[position + 1], i);
+	tmp[i] = '\0';
+	cleaner(content);
+	return (tmp);
 }
 
 char	*get_next_line(int fd)
 {
 	static char	*content;
-	ssize_t	bytes_read;
-	size_t	times;
-	size_t	position;
+	char		*line;
+	size_t		position;
 
-	content = (char *)malloc(sizeof(char) * BUFFER_SIZE);
+	if (fd < 0 || BUFFER_SIZE <= 0)
+		return (NULL);
+	content = read_and_accumulate(fd, content, &position);
 	if (!content)
 		return (NULL);
-	bytes_read = read(fd, content, BUFFER_SIZE);
-	while (bytes_read > 0)
+	line = conffirm(content, position);
+	if (!line)
 	{
-		if (checker(content, &position) != 0)
-		{
-			cleaner(content, times);
-			bytes_read = read(fd, content, BUFFER_SIZE * times);
-		}
-		else
-			return(conffirm(content, times, position));
+		content = cleaner(content);
+		return (NULL);
 	}
-	return (NULL);
+	content = recover(content, position);
+	return (line);
 }
