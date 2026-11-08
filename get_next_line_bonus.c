@@ -3,91 +3,108 @@
 /*                                                        :::      ::::::::   */
 /*   get_next_line_bonus.c                              :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: alopez-t <alopez-t@student.42barcelona.    +#+  +:+       +#+        */
+/*   By: alopez-t <alopez-t@student.42barcelona.co  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/11/05 14:52:50 by alopez-t          #+#    #+#             */
-/*   Updated: 2026/11/05 14:52:55 by alopez-t         ###   ########.fr       */
+/*   Created: 2026/11/08 15:16:56 by alopez-t          #+#    #+#             */
+/*   Updated: 2026/11/08 18:26:13 by alopez-t         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
-
 #include "get_next_line_bonus.h"
 
-char	*read_and_accumulate(int fd, char *content, size_t *position)
+void	*read_and_accumulate(int fd, t_list **stash, t_list **tail)
 {
 	char	*tmp;
 	ssize_t	bytes_read;
 
-	tmp = (char *)malloc(sizeof(char) * ((size_t)BUFFER_SIZE + 1));
-	if (!tmp)
-		return (cleaner(content));
 	bytes_read = 1;
-	while ((checker(content, position) == 0) && bytes_read > 0)
+	while (!checker((*tail)) && bytes_read > 0)
 	{
+		tmp = (char *)malloc(sizeof(char) * ((size_t)BUFFER_SIZE + 1));
+		if (!tmp)
+			return (free_stash(stash));
 		bytes_read = read(fd, tmp, BUFFER_SIZE);
-		if (bytes_read < 0)
-			break ;
-		tmp[bytes_read] = '\0';
-		content = ft_strjoin(content, tmp);
+		if (bytes_read <= 0)
+			free(tmp);
+		else
+		{
+			tmp[bytes_read] = '\0';
+			if (!ft_lstadd_back(stash, tail, tmp))
+				return (free_stash(stash));
+		}
 	}
-	free(tmp);
-	if (bytes_read < 0 || !content || content[0] == '\0')
-		return (cleaner(content));
-	return (content);
+	if (bytes_read < 0)
+		return (free_stash(stash));
+	return (NULL);
 }
 
-char	*conffirm(char *content, size_t position)
+char	*conffirm(t_list *stash)
 {
 	char	*line;
-	size_t	len;
+	size_t	i;
+	size_t	k;
 
-	if (content[position] == '\n')
-		len = position + 1;
-	else
-		len = position;
-	line = (char *)malloc(sizeof(char) * (len + 1));
+	line = (char *)malloc(sizeof(char) * (get_len_line(stash)) + 1);
 	if (!line)
 		return (NULL);
-	ft_strcpy(line, content, len);
-	line[len] = '\0';
+	k = 0;
+	while (stash)
+	{
+		i = 0;
+		while (stash->content[i])
+		{
+			line[k++] = stash->content[i];
+			if (stash->content[i] == '\n')
+			{
+				line[k] = '\0';
+				return (line);
+			}
+			i++;
+		}
+		stash = stash->next;
+	}
+	line[k] = '\0';
 	return (line);
 }
 
-char	*recover(char *content, size_t position)
+void	*recover(t_list **stash, t_list *tail)
 {
+	char	*new_str;
 	size_t	i;
-	char	*tmp;
+	size_t	j;
 
-	if (content[position] != '\n' || !content[position + 1])
-		return (cleaner(content));
-	i = 0;
-	while (content[position + 1 + i] != '\0')
-		i++;
-	tmp = (char *)malloc(sizeof(char) * (i + 1));
-	if (!tmp)
-		return (cleaner(content));
-	ft_strcpy(tmp, &content[position + 1], i);
-	tmp[i] = '\0';
-	cleaner(content);
-	return (tmp);
+	i = get_len_line(tail);
+	if (!tail->content[i])
+		return (free_stash(stash));
+	j = 0;
+	while (tail->content[i + j])
+		j++;
+	new_str = (char *)malloc(sizeof(char) * j + 1);
+	if (!new_str)
+		return (free_stash(stash));
+	j = 0;
+	while (tail->content[i])
+		new_str[j++] = tail->content[i++];
+	new_str[j] = '\0';
+	free_stash(stash);
+	tail = ft_lstnew(new_str);
+	return (*stash = tail);
 }
 
 char	*get_next_line(int fd)
 {
-	static char	*content[OPEN_MAX];
-	char		*line;
-	size_t		position;
+	static t_list	*stash[OPEN_MAX];
+	t_list			*tail[OPEN_MAX];
+	char			*line;
 
 	if (fd < 0 || fd >= OPEN_MAX || BUFFER_SIZE <= 0)
 		return (NULL);
-	content[fd] = read_and_accumulate(fd, content[fd], &position);
-	if (!content[fd])
+	tail[fd] = stash[fd];
+	read_and_accumulate(fd, &stash[fd], &tail[fd]);
+	if (!stash[fd] || !tail[fd])
 		return (NULL);
-	line = conffirm(content[fd], position);
+	line = conffirm(stash[fd]);
 	if (!line)
-	{
-		content[fd] = cleaner(content[fd]);
-		return (NULL);
-	}
-	content[fd] = recover(content[fd], position);
+		return (free_stash(&stash[fd]));
+	recover(&stash[fd], tail[fd]);
 	return (line);
 }
